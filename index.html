@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>さくらんぼざん かきかたアシスト</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 小学生にも読みやすい丸ゴシックフォント -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* 全体のフォントとノート風方眼背景 */
+    body {
+      font-family: 'Zen Maru Gothic', sans-serif;
+      background-color: #fffdf7;
+      background-image:
+        linear-gradient(to right, rgba(251, 191, 36, 0.14) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(251, 191, 36, 0.14) 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: #334155;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 入力ボックスのアクティブ時の光彩アニメーション */
+    @keyframes pulseRing {
+      0%, 100% {
+        box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.25);
+        transform: scale(1.03);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(244, 63, 94, 0.1);
+        transform: scale(1.06);
+      }
+    }
+
+    .active-slot {
+      animation: pulseRing 1.6s infinite ease-in-out;
+      border-color: #f43f5e !important;
+      background-color: #fff1f2 !important;
+    }
+
+    /* 間違い時の横揺れアニメーション */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    .shake-anim {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    /* 正解時のポップアニメーション */
+    @keyframes popIn {
+      0% { transform: scale(0.7); opacity: 0; }
+      70% { transform: scale(1.12); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .pop-anim {
+      animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* はなまるの回転＆出現アニメーション */
+    @keyframes hanamaruSpin {
+      0% { transform: scale(0.3) rotate(-30deg); opacity: 0; }
+      70% { transform: scale(1.08) rotate(6deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+
+    .hanamaru-anim {
+      animation: hanamaruSpin 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* ボタンの立体押し込み感 */
+    .btn-3d {
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .btn-3d:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* ブロックの斜線（ひいた数を表す） */
+    .block-crossed {
+      position: relative;
+      opacity: 0.42;
+      transform: scale(0.92);
+    }
+    .block-crossed::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      background: linear-gradient(to top left, transparent 44%, #ef4444 46%, #ef4444 54%, transparent 56%);
+      border-radius: 4px;
+    }
+
+    /* 計算する数字同士をつなぐ点線アニメーション */
+    @keyframes dashFlow {
+      to {
+        stroke-dashoffset: -24;
+      }
+    }
+    .calc-bridge-line {
+      stroke-dasharray: 6 6;
+      animation: dashFlow 1s linear infinite;
+    }
+  
+    .calculation-oval {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      padding: 0.22rem 0.65rem;
+      border: 4px solid #f43f5e;
+      border-radius: 9999px;
+      background: rgba(255, 241, 242, 0.72);
+      box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
+      transform: scale(1.04);
+      animation: oval-pulse 1.25s ease-in-out infinite;
+      white-space: nowrap;
+    }
+    .calculation-oval.is-green {
+      border-color: #10b981;
+      background: rgba(236, 253, 245, 0.8);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+    }
+    @keyframes oval-pulse {
+      0%, 100% { transform: scale(1.02); }
+      50% { transform: scale(1.07); }
+    }
+
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ヘッダーエリア -->
+  <header class="bg-white/95 backdrop-blur border-b-2 border-amber-200 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-5xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
+      <!-- アプリタイトル -->
+      <div class="flex items-center gap-2">
+        <div class="w-10 h-10 rounded-2xl bg-rose-100 border-2 border-rose-300 flex items-center justify-center shadow-inner">
+          <!-- さくらんぼSVGアイコン -->
+          <svg class="w-7 h-7" viewBox="0 0 36 36" fill="none">
+            <path d="M18 5C14 11 10 17 10 23" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M18 5C22 11 26 17 26 23" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M18 5C21 3 25 4 26 7C23 8 20 7 18 5Z" fill="#22c55e"/>
+            <circle cx="10" cy="25" r="6" fill="#f43f5e" stroke="#be123c" stroke-width="1.5"/>
+            <circle cx="26" cy="25" r="6" fill="#fb7185" stroke="#be123c" stroke-width="1.5"/>
+            <circle cx="8" cy="23" r="1.5" fill="white" opacity="0.8"/>
+            <circle cx="24" cy="23" r="1.5" fill="white" opacity="0.8"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-xl font-black text-rose-600 tracking-tight leading-tight">
+            さくらんぼ算 かきかたアシスト
+          </h1>
+          <p class="text-[11px] sm:text-xs font-bold text-amber-700">
+            プリントの しきを いれて みてみよう
+          </p>
+        </div>
+      </div>
+
+      <!-- コントロールボタン群（プリントの式入力を最優先配置） -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- プリントの式をいれるボタン（最重要） -->
+        <button id="open-picker-btn" type="button"
+          class="btn-3d bg-sky-500 hover:bg-sky-600 text-white font-black text-xs sm:text-sm px-3.5 sm:px-4 py-2.5 rounded-2xl shadow-[0_4px_0_#0284c7] flex items-center gap-1.5">
+          <span>✏️ しきを いれる</span>
+        </button>
+
+        <!-- 効果音オン/オフ -->
+        <button id="sound-toggle-btn" type="button" aria-label="おとのきりかえ"
+          class="bg-slate-100 hover:bg-slate-200 border-2 border-slate-300 text-slate-700 p-2 rounded-2xl text-sm font-bold">
+          🔊
+        </button>
+      </div>
+    </div>
+
+    <!-- 計算方法（ひきたしざん / ひきひきざん）切り替えタブ -->
+    <div class="max-w-5xl mx-auto px-3 sm:px-6 pb-2.5">
+      <div class="grid grid-cols-2 gap-2 bg-amber-100/80 p-1.5 rounded-2xl border border-amber-200">
+        <button id="mode-genkaho" type="button"
+          class="py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 bg-rose-500 text-white shadow">
+          <span>🍒 ひきたしざん</span>
+          <span class="text-[11px] sm:text-xs font-bold opacity-95">10と いくつに わけて、ひいて たすよ</span>
+        </button>
+        <button id="mode-gengenho" type="button"
+          class="py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 text-amber-900 hover:bg-white/60">
+          <span>🍒 ひきひきざん</span>
+          <span class="text-[11px] sm:text-xs font-bold opacity-85">ひく かずを わけて、じゅんばんに ひくよ</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-3 sm:py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+    <!-- 左側（7カラム）：さくらんぼ式メインステージ＆算数ブロック -->
+    <section class="lg:col-span-7 flex flex-col gap-3">
+
+      <!-- メインの式と特大さくらんぼ図カード -->
+      <div class="bg-white rounded-3xl border-3 border-rose-300 p-4 sm:p-6 shadow-md relative overflow-hidden">
+        <!-- 上部バー：学習スタイル切り替え（自分で練習 / かきかたお手本）＆やりなおし -->
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-amber-100">
+          <!-- じぶんで とく / かきかた おてほん 切り替え -->
+          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+            <button id="study-practice-btn" type="button"
+              class="py-1 px-3 rounded-xl font-black text-xs sm:text-sm bg-rose-500 text-white shadow-xs transition-all">
+              ✏️ じぶんで やってみる
+            </button>
+            <button id="study-example-btn" type="button"
+              class="py-1 px-3 rounded-xl font-black text-xs sm:text-sm text-slate-600 hover:bg-white/80 transition-all">
+              👀 おてほんを みる
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <button id="reset-problem-btn" type="button"
+              class="text-xs font-bold text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-full transition-colors">
+              ↺ はじめから
+            </button>
+          </div>
+        </div>
+
+        <!-- ステップ進行ピル -->
+        <div class="flex items-center justify-center gap-1.5 text-xs sm:text-sm font-black mb-2">
+          <span id="step-pill-1" class="py-1 px-2.5 rounded-full bg-rose-500 text-white transition-all">① わける</span>
+          <span class="text-slate-300">➔</span>
+          <span id="step-pill-2" class="py-1 px-2.5 rounded-full bg-slate-100 text-slate-400 transition-all">② ひく</span>
+          <span class="text-slate-300">➔</span>
+          <span id="step-pill-3" class="py-1 px-2.5 rounded-full bg-slate-100 text-slate-400 transition-all">③ こたえ</span>
+        </div>
+
+        <!-- 計算ペアを示す上部ナビゲーションバッジ -->
+        <div id="top-bridge-banner" class="min-h-[30px] flex items-center justify-center mb-1">
+          <span id="mode-badge" class="inline-block bg-rose-50 text-rose-700 font-black text-xs sm:text-sm px-3.5 py-1 rounded-full border border-rose-200">
+            13 を「10」と「いくつ」に わけるかな？
+          </span>
+        </div>
+
+        <!-- 特大さくらんぼ式レイアウト（式の数字をタップしても式変更モーダルが開く） -->
+        <div class="relative flex items-start justify-center gap-2 sm:gap-5 pt-1 pb-2">
+
+          <!-- ひかれる数 (A) と ひきたしざん用さくらんぼ -->
+          <div class="flex flex-col items-center w-32 sm:w-40 relative z-10">
+            <button type="button" id="num-minuend" title="タップして しきを かえる"
+              class="w-20 h-16 sm:w-24 sm:h-20 rounded-2xl bg-amber-50 hover:bg-amber-100 border-3 border-amber-400 flex items-center justify-center text-4xl sm:text-5xl font-black text-slate-800 shadow-sm transition-all cursor-pointer">
+              13
+            </button>
+
+            <!-- ひきたしざん用のさくらんぼ枝＆特大丸 -->
+            <div id="cherry-area-minuend" class="w-full flex flex-col items-center">
+              <svg class="w-full h-11" viewBox="0 0 160 44" fill="none">
+                <path d="M80 2 L36 40" stroke="#16a34a" stroke-width="4" stroke-linecap="round"/>
+                <path d="M80 2 L124 40" stroke="#16a34a" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+              <div class="w-full flex justify-between px-1">
+                <button type="button" data-slot="cherry1" id="genkaho-c1"
+                  class="slot-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full border-3 border-rose-400 bg-white flex items-center justify-center text-2xl sm:text-3xl font-black text-rose-600 shadow-sm transition-all">
+                  ?
+                </button>
+                <button type="button" data-slot="cherry2" id="genkaho-c2"
+                  class="slot-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full border-3 border-rose-400 bg-white flex items-center justify-center text-2xl sm:text-3xl font-black text-rose-600 shadow-sm transition-all">
+                  ?
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- マイナス記号 -->
+          <div class="h-16 sm:h-20 flex items-center justify-center text-3xl sm:text-4xl font-black text-slate-400">
+            −
+          </div>
+
+          <!-- ひく数 (B) と ひきひきざん用さくらんぼ -->
+          <div class="flex flex-col items-center w-32 sm:w-40 relative z-10">
+            <button type="button" id="num-subtrahend" title="タップして しきを かえる"
+              class="w-20 h-16 sm:w-24 sm:h-20 rounded-2xl bg-sky-50 hover:bg-sky-100 border-3 border-sky-400 flex items-center justify-center text-4xl sm:text-5xl font-black text-slate-800 shadow-sm transition-all cursor-pointer">
+              9
+            </button>
+
+            <!-- ひきひきざん用のさくらんぼ枝＆特大丸 -->
+            <div id="cherry-area-subtrahend" class="w-full flex flex-col items-center hidden">
+              <svg class="w-full h-11" viewBox="0 0 160 44" fill="none">
+                <path d="M80 2 L36 40" stroke="#16a34a" stroke-width="4" stroke-linecap="round"/>
+                <path d="M80 2 L124 40" stroke="#16a34a" stroke-width="4" stroke-linecap="round"/>
+              </svg>
+              <div class="w-full flex justify-between px-1">
+                <button type="button" data-slot="cherry1" id="gengenho-c1"
+                  class="slot-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full border-3 border-rose-400 bg-white flex items-center justify-center text-2xl sm:text-3xl font-black text-rose-600 shadow-sm transition-all">
+                  ?
+                </button>
+                <button type="button" data-slot="cherry2" id="gengenho-c2"
+                  class="slot-btn w-14 h-14 sm:w-16 sm:h-16 rounded-full border-3 border-rose-400 bg-white flex items-center justify-center text-2xl sm:text-3xl font-black text-rose-600 shadow-sm transition-all">
+                  ?
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- イコール記号 -->
+          <div class="h-16 sm:h-20 flex items-center justify-center text-3xl sm:text-4xl font-black text-slate-400">
+            ＝
+          </div>
+
+          <!-- さいごのこたえボックス -->
+          <div class="flex flex-col items-center relative z-10">
+            <button type="button" data-slot="finalAnswer" id="final-answer-slot"
+              class="slot-btn w-20 h-16 sm:w-24 sm:h-20 rounded-2xl border-3 border-slate-300 bg-slate-50 flex items-center justify-center text-4xl sm:text-5xl font-black text-emerald-600 shadow-sm transition-all">
+              ?
+            </button>
+          </div>
+        </div>
+
+        <!-- ステップ2・ステップ3の途中式（さくらんぼの真下に大きく配置） -->
+        <div class="mt-3 pt-3 border-t-2 border-dashed border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <!-- ステップ2の式 -->
+          <div id="step2-box" class="flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 transition-all">
+            <span class="text-xs font-black bg-indigo-500 text-white px-2 py-0.5 rounded-lg mr-1">②</span>
+            <span id="step2-focus-pair" class="calculation-oval">
+              <span id="step2-left" class="font-black text-2xl sm:text-3xl text-slate-700 w-9 text-center">10</span>
+              <span class="font-black text-xl text-slate-400">−</span>
+              <span id="step2-right" class="font-black text-2xl sm:text-3xl text-slate-700 w-9 text-center">9</span>
+            </span>
+            <span class="font-black text-xl text-slate-400">＝</span>
+            <button type="button" data-slot="midAnswer" id="mid-answer-slot"
+              class="slot-btn w-12 h-12 rounded-xl border-3 border-slate-300 bg-white font-black text-2xl sm:text-3xl text-indigo-600 flex items-center justify-center shadow-xs">
+              ?
+            </button>
+          </div>
+
+          <!-- ステップ3の式 -->
+          <div id="step3-box" class="flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-slate-50 border-2 border-slate-200 opacity-45 transition-all">
+            <span class="text-xs font-black bg-emerald-500 text-white px-2 py-0.5 rounded-lg mr-1">③</span>
+            <span id="step3-focus-pair" class="calculation-oval">
+              <span id="step3-left" class="font-black text-2xl sm:text-3xl text-slate-700 w-9 text-center">3</span>
+              <span id="step3-op" class="font-black text-xl text-slate-400">＋</span>
+              <span id="step3-right" class="font-black text-2xl sm:text-3xl text-slate-700 w-9 text-center">?</span>
+            </span>
+            <span class="font-black text-xl text-slate-400">＝</span>
+            <span id="step3-preview" class="font-black text-2xl sm:text-3xl text-emerald-600 w-10 text-center">?</span>
+          </div>
+        </div>
+
+        <!-- おてほんモード時のプリント書き写しガイド帯 -->
+        <div id="example-note-banner" class="hidden mt-3 p-3 rounded-2xl bg-amber-50 border-2 border-amber-300 text-xs sm:text-sm font-bold text-amber-950">
+          <div class="font-black text-amber-800 mb-1">📝 プリントに かく じゅんばん</div>
+          <p id="example-note-text" class="leading-relaxed"></p>
+        </div>
+
+        <!-- 正解時の「できたね！」コンパクトバナー（さくらんぼ図を隠さずプリントに書き写せるようにする） -->
+        <div id="hanamaru-overlay" class="hidden mt-3 p-3.5 rounded-2xl bg-rose-50 border-2 border-rose-400 flex flex-wrap items-center justify-between gap-3 pop-anim">
+          <div class="flex items-center gap-2.5">
+            <div class="w-11 h-11 rounded-full bg-rose-500 text-white font-black text-xs flex items-center justify-center shadow-sm shrink-0">
+              はなまる
+            </div>
+            <div>
+              <div class="text-sm sm:text-base font-black text-rose-700">
+                だいせいかい！ プリントに かこう！
+              </div>
+              <div id="hanamaru-eq" class="text-xs sm:text-sm font-black text-rose-900">
+                13 − 9 ＝ 4
+              </div>
+            </div>
+          </div>
+          <button id="next-after-win-btn" type="button"
+            class="btn-3d bg-sky-500 hover:bg-sky-600 text-white font-black text-xs sm:text-sm px-4 py-2.5 rounded-2xl shadow-[0_3px_0_#0284c7]">
+            ✏️ つぎの プリントの しきを いれる
+          </button>
+        </div>
+      </div>
+
+      <!-- 視覚サポート：さんすうブロック（コンパクト＆折りたたみ可能） -->
+      <div class="bg-white rounded-3xl border-2 border-amber-200 p-3 sm:p-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs sm:text-sm font-black text-amber-800 flex items-center gap-1.5">
+            <span>🟨 ブロックで みてみよう</span>
+            <span id="block-caption" class="text-xs font-bold text-slate-500 ml-1">（10と 3）</span>
+          </h2>
+          <button id="toggle-blocks-btn" type="button"
+            class="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-full transition-colors">
+            かくす ▲
+          </button>
+        </div>
+
+        <div id="blocks-body" class="grid grid-cols-2 gap-2.5 mt-2.5">
+          <!-- 左の10の部屋（5×2の10フレーム） -->
+          <div class="bg-amber-50/80 border-2 border-amber-300 rounded-2xl p-2">
+            <div class="text-[11px] font-bold text-amber-700 mb-1 text-center">10の へや</div>
+            <div id="ten-frame-left" class="grid grid-cols-5 gap-1 max-w-[185px] mx-auto">
+              <!-- JSで10個のブロックを生成 -->
+            </div>
+          </div>
+
+          <!-- 右のばらの部屋（5×2の10フレーム） -->
+          <div class="bg-sky-50/80 border-2 border-sky-300 rounded-2xl p-2">
+            <div class="text-[11px] font-bold text-sky-700 mb-1 text-center">ばらの へや</div>
+            <div id="ten-frame-right" class="grid grid-cols-5 gap-1 max-w-[185px] mx-auto">
+              <!-- JSでばらのブロックを生成 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- いま している けいさんを、ことばと しきで みせる -->
+      <div id="process-card" class="bg-white rounded-3xl border-2 border-sky-200 p-4 sm:p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <h2 class="text-sm sm:text-base font-black text-sky-800">いまの けいさん</h2>
+          <span id="process-step-label" class="text-xs font-black bg-sky-100 text-sky-800 px-3 py-1 rounded-full">① わける</span>
+        </div>
+        <p id="process-message" class="text-sm sm:text-base font-black text-slate-700 text-center mb-3">13を 10と3に わけるよ。</p>
+        <div id="process-equation" class="flex flex-wrap items-center justify-center gap-2 min-h-[66px] text-2xl sm:text-3xl font-black">
+          <span class="px-4 py-2 rounded-2xl bg-amber-100 text-amber-900 border-2 border-amber-300">13</span>
+          <span class="text-slate-400">→</span>
+          <span class="px-4 py-2 rounded-2xl bg-rose-100 text-rose-700 border-2 border-rose-300">10</span>
+          <span class="text-slate-500">と</span>
+          <span class="px-4 py-2 rounded-2xl bg-sky-100 text-sky-700 border-2 border-sky-300">3</span>
+        </div>
+        <p id="process-submessage" class="text-xs sm:text-sm font-bold text-slate-500 text-center mt-3">10のまとまりと、ばらに わけよう。</p>
+      </div>
+    </section>
+
+    <!-- 右側（5カラム）：先生のアドバイス＆ワンタップ数字キーパッド -->
+    <section class="lg:col-span-5 flex flex-col gap-3">
+
+      <!-- 先生キャラクターのメッセージ＆ヒントカード -->
+      <div class="bg-white rounded-3xl border-2 border-emerald-200 p-4 shadow-sm">
+        <div class="flex items-start gap-3">
+          <!-- さくらんぼ先生アバター -->
+          <div class="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-2xl bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center">
+            <svg class="w-10 h-10 sm:w-11 sm:h-11" viewBox="0 0 48 48" fill="none">
+              <circle cx="24" cy="26" r="16" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+              <path d="M12 18C14 10 34 10 36 18" fill="#f43f5e"/>
+              <circle cx="19" cy="25" r="2" fill="#1e293b"/>
+              <circle cx="29" cy="25" r="2" fill="#1e293b"/>
+              <path d="M20 31C22 33.5 26 33.5 28 31" stroke="#e11d48" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="15" cy="28" r="2.2" fill="#fda4af" opacity="0.7"/>
+              <circle cx="33" cy="28" r="2.2" fill="#fda4af" opacity="0.7"/>
+            </svg>
+          </div>
+
+          <!-- 吹き出しテキスト -->
+          <div class="flex-1">
+            <div id="guide-title" class="text-xs font-black text-emerald-700 mb-0.5">
+              ステップ①：さくらんぼに わけよう！
+            </div>
+            <p id="guide-message" class="text-sm sm:text-base font-bold text-slate-700 leading-relaxed">
+              13を「10」と「いくつ」に わけるかな？
+            </p>
+          </div>
+        </div>
+
+        <!-- ヒント表示エリア（ヒントボタンを押すと開く：図解＋テキスト） -->
+        <div id="hint-box" class="hidden mt-3 p-3 rounded-2xl bg-amber-50 border-2 border-amber-300 text-xs sm:text-sm font-bold text-amber-950 leading-relaxed space-y-2">
+          <div id="hint-text"></div>
+          <div id="hint-visual" class="flex items-center justify-center gap-2 pt-1"></div>
+        </div>
+
+        <!-- ヒントボタン -->
+        <div class="mt-3 flex items-center justify-between gap-2">
+          <span class="text-[11px] font-bold text-slate-500">わけかたに まよったら おしてね</span>
+          <button id="hint-btn" type="button"
+            class="btn-3d bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-xs sm:text-sm px-4 py-2 rounded-2xl shadow-[0_3px_0_#d97706] flex items-center gap-1.5">
+            <span>💡 わけかた ヒント</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ワンタップ数字キーパッド（1〜10） -->
+      <div id="keypad-panel" class="bg-white rounded-3xl border-2 border-slate-200 p-4 shadow-md transition-opacity">
+        <div class="flex items-center justify-between mb-2.5">
+          <span class="text-xs font-black text-slate-600">👇 すうじを おそう！</span>
+          <span id="current-input-display" class="text-xs font-black text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+            1かい おすだけで OK！
+          </span>
+        </div>
+
+        <!-- 1〜10の大きなボタン（押した瞬間に自動判定） -->
+        <div class="grid grid-cols-5 gap-2 mb-2">
+          <button type="button" data-num="1" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">1</button>
+          <button type="button" data-num="2" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">2</button>
+          <button type="button" data-num="3" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">3</button>
+          <button type="button" data-num="4" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">4</button>
+          <button type="button" data-num="5" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">5</button>
+          <button type="button" data-num="6" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">6</button>
+          <button type="button" data-num="7" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">7</button>
+          <button type="button" data-num="8" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">8</button>
+          <button type="button" data-num="9" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 active:bg-rose-100 border-2 border-slate-300 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-slate-800 shadow-[0_4px_0_#cbd5e1]">9</button>
+          <button type="button" data-num="10" class="num-key btn-3d bg-amber-100 hover:bg-amber-200 active:bg-amber-300 border-2 border-amber-400 rounded-2xl py-3.5 sm:py-4 text-2xl sm:text-3xl font-black text-amber-900 shadow-[0_4px_0_#f59e0b]">10</button>
+        </div>
+
+        <!-- 0ボタン（必要な場合用） -->
+        <div class="grid grid-cols-5 gap-2">
+          <button type="button" data-num="0" class="num-key btn-3d bg-slate-50 hover:bg-rose-50 border-2 border-slate-300 rounded-2xl py-2.5 text-xl font-black text-slate-700 shadow-[0_3px_0_#cbd5e1]">
+            0
+          </button>
+          <div class="col-span-4 flex items-center justify-center text-xs font-bold text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 px-3">
+            すうじを おすと すぐに こたえが わかるよ！
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 問題（数字）入力モーダル -->
+  <div id="picker-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl border-3 border-sky-300 max-w-md w-full p-5 shadow-2xl pop-anim">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-black text-sky-700">✏️ プリントの しきを いれよう</h2>
+        <button id="close-picker-btn" type="button" class="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 font-black text-slate-600">✕</button>
+      </div>
+
+      <!-- 選択中のプレビュー -->
+      <div class="bg-sky-50 border-2 border-sky-200 rounded-2xl p-3 mb-4 text-center">
+        <div class="text-3xl font-black text-slate-800 tracking-wider">
+          <span id="modal-minuend" class="text-amber-600">13</span>
+          <span class="mx-2 text-slate-400">−</span>
+          <span id="modal-subtrahend" class="text-sky-600">9</span>
+        </div>
+        <p id="modal-validation-msg" class="text-xs font-bold text-emerald-600 mt-1">
+          ⭕ さくらんぼ算を つかう くりさがりの しきだよ！
+        </p>
+      </div>
+
+      <!-- ひかれる数 (11〜18) -->
+      <div class="mb-3">
+        <label class="block text-xs font-black text-amber-800 mb-1.5">① ひかれる かず（11 〜 18）を えらぶ</label>
+        <div id="minuend-buttons" class="grid grid-cols-4 gap-1.5">
+          <!-- JSで11〜18ボタン生成 -->
+        </div>
+      </div>
+
+      <!-- ひく数 (1〜9) -->
+      <div class="mb-4">
+        <label class="block text-xs font-black text-sky-800 mb-1.5">② ひく かず（1 〜 9）を えらぶ</label>
+        <div id="subtrahend-buttons" class="grid grid-cols-5 gap-1.5">
+          <!-- JSで1〜9ボタン生成 -->
+        </div>
+      </div>
+
+      <!-- 決定ボタン -->
+      <button id="apply-problem-btn" type="button"
+        class="btn-3d w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 disabled:shadow-none text-white font-black text-base py-3 rounded-2xl shadow-[0_4px_0_#0284c7]">
+        この しきの ときかたを みる！
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 小学校1年生 算数「さくらんぼ算 かきかたアシスト」メインロジック
+     * - 教科書やプリントの式をそのまま入力し、分け方・途中式・書き方をアシスト
+     * - 「じぶんで いれてみる（練習モード）」と「かきかた おてほん（書き写し見本モード）」を切り替え可能
+     */
+
+    // ==========================================
+    // 1. アプリ状態管理
+    // ==========================================
+    const state = {
+      mode: 'genkaho',      // 'genkaho' (ひきたしざん) または 'gengenho' (ひきひきざん)
+      studyMode: 'practice',// 'practice' (じぶんで入力) または 'example' (かきかたお手本表示)
+      minuend: 13,          // ひかれる数 (11〜18)
+      subtrahend: 9,        // ひく数 (1〜9)
+      step: 1,              // 1: さくらんぼ分解, 2: 途中式, 3: 最終答え, 4: 完了
+      activeSlot: 'cherry1',// 現在入力中のスロット名
+      values: {
+        cherry1: '',
+        cherry2: '',
+        midAnswer: '',
+        finalAnswer: ''
+      },
+      cherry1Done: false,
+      cherry2Done: false,
+      hintLevel: 0,         // 0: なし, 1: ヒント1, 2: ヒント2（答えに近いヒント）
+      soundEnabled: true,
+      modalMinuend: 13,
+      modalSubtrahend: 9
+    };
+
+    // ==========================================
+    // 2. 効果音ユーティリティ（Web Audio API）
+    // ==========================================
+    let audioCtx = null;
+
+    function playTone(type) {
+      if (!state.soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'tap') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (type === 'correct') {
+          // ピンポーン♪
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(659.25, now);      // ミ
+          osc.frequency.setValueAtTime(880, now + 0.12);  // ラ
+          gain.gain.setValueAtTime(0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'win') {
+          // ファンファーレ風和音メロディ
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((freq, idx) => {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = 'triangle';
+            o.connect(g);
+            g.connect(audioCtx.destination);
+            o.frequency.setValueAtTime(freq, now + idx * 0.1);
+            g.gain.setValueAtTime(0.14, now + idx * 0.1);
+            g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.35);
+            o.start(now + idx * 0.1);
+            o.stop(now + idx * 0.1 + 0.35);
+          });
+        } else if (type === 'wrong') {
+          // やさしいブザー音
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.linearRampToValueAtTime(180, now + 0.22);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+          osc.start(now);
+          osc.stop(now + 0.24);
+        }
+      } catch (e) {
+        // 音声再生非対応環境でもエラーにしない
+      }
+    }
+
+    // ==========================================
+    // 3. 正解値の計算ヘルパー
+    // ==========================================
+    function getExpectedValues() {
+      const ones = state.minuend - 10; // 一の位（例: 13なら3）
+      const finalAns = state.minuend - state.subtrahend;
+
+      if (state.mode === 'genkaho') {
+        // ひきたしざん: 13 - 9 -> 13を [10] と [3] に分ける -> 10 - 9 = [1] -> 3 + 1 = [4]
+        return {
+          cherry1: 10,
+          cherry2: ones,
+          midAnswer: 10 - state.subtrahend,
+          finalAnswer: finalAns
+        };
+      } else {
+        // ひきひきざん: 12 - 3 -> 3を [2] と [1] に分ける -> 12 - 2 = [10] -> 10 - 1 = [9]
+        return {
+          cherry1: ones,
+          cherry2: state.subtrahend - ones,
+          midAnswer: 10,
+          finalAnswer: finalAns
+        };
+      }
+    }
+
+    // ==========================================
+    // 4. 問題の初期化・切り替え
+    // ==========================================
+    function loadProblem(minuend, subtrahend) {
+      state.minuend = minuend;
+      state.subtrahend = subtrahend;
+      state.hintLevel = 0;
+
+      document.getElementById('hanamaru-overlay').classList.add('hidden');
+      document.getElementById('hint-box').classList.add('hidden');
+
+      if (state.studyMode === 'example') {
+        applyExampleModeState();
+      } else {
+        state.step = 1;
+        state.activeSlot = 'cherry1';
+        state.values = {
+          cherry1: '',
+          cherry2: '',
+          midAnswer: '',
+          finalAnswer: ''
+        };
+        state.cherry1Done = false;
+        state.cherry2Done = false;
+      }
+
+      renderAll();
+    }
+
+    // 「かきかた おてほん」モード用に全ステップの答えと書き順をセット
+    function applyExampleModeState() {
+      const expected = getExpectedValues();
+      state.step = 4;
+      state.activeSlot = '';
+      state.cherry1Done = true;
+      state.cherry2Done = true;
+      state.values = {
+        cherry1: String(expected.cherry1),
+        cherry2: String(expected.cherry2),
+        midAnswer: String(expected.midAnswer),
+        finalAnswer: String(expected.finalAnswer)
+      };
+    }
+
+    // ==========================================
+    // 5. 画面描画（UI・ブロック・ガイド文）
+    // ==========================================
+    function renderAll() {
+      const expected = getExpectedValues();
+      const ones = state.minuend - 10;
+
+      // 学習スタイルタブ（じぶんで いれてみる / かきかた おてほん）の見た目更新
+      const btnPractice = document.getElementById('study-practice-btn');
+      const btnExample = document.getElementById('study-example-btn');
+      const keypadPanel = document.getElementById('keypad-panel');
+      const exampleBanner = document.getElementById('example-note-banner');
+      const exampleText = document.getElementById('example-note-text');
+
+      if (state.studyMode === 'practice') {
+        btnPractice.className = 'py-1 px-3 rounded-xl font-black text-xs sm:text-sm bg-rose-500 text-white shadow-xs transition-all';
+        btnExample.className = 'py-1 px-3 rounded-xl font-black text-xs sm:text-sm text-slate-600 hover:bg-white/80 transition-all';
+        keypadPanel.classList.remove('opacity-40', 'pointer-events-none');
+        exampleBanner.classList.add('hidden');
+      } else {
+        btnExample.className = 'py-1 px-3 rounded-xl font-black text-xs sm:text-sm bg-amber-500 text-white shadow-xs transition-all';
+        btnPractice.className = 'py-1 px-3 rounded-xl font-black text-xs sm:text-sm text-slate-600 hover:bg-white/80 transition-all';
+        keypadPanel.classList.add('opacity-40', 'pointer-events-none');
+        exampleBanner.classList.remove('hidden');
+        document.getElementById('hanamaru-overlay').classList.add('hidden');
+
+        if (state.mode === 'genkaho') {
+          exampleText.innerHTML =
+            `① <b>${state.minuend}</b> を <b>10</b> と <b>${ones}</b> に わけるよ。<br>` +
+            `② <b>10 − ${state.subtrahend} ＝ ${expected.midAnswer}</b> を けいさんするよ。<br>` +
+            `③ のこりの <b>${ones}</b> と <b>${expected.midAnswer}</b> を たすよ。<b>${expected.finalAnswer}</b> が こたえだよ。`;
+        } else {
+          exampleText.innerHTML =
+            `① <b>${state.subtrahend}</b> を <b>${ones}</b> と <b>${expected.cherry2}</b> に わけるよ。<br>` +
+            `② <b>${state.minuend} − ${ones} ＝ 10</b> に するよ。<br>` +
+            `③ <b>10</b> から のこりの <b>${expected.cherry2}</b> を ひくよ。<b>${expected.finalAnswer}</b> が こたえだよ。`;
+        }
+      }
+
+      // モードタブの見た目更新
+      const btnGenkaho = document.getElementById('mode-genkaho');
+      const btnGengenho = document.getElementById('mode-gengenho');
+      if (state.mode === 'genkaho') {
+        btnGenkaho.className = 'py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 bg-rose-500 text-white shadow';
+        btnGengenho.className = 'py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 text-amber-900 hover:bg-white/60';
+        document.getElementById('mode-badge').textContent = '10と いくつに わけて けいさん！';
+        document.getElementById('cherry-area-minuend').classList.remove('hidden');
+        document.getElementById('cherry-area-subtrahend').classList.add('hidden');
+      } else {
+        btnGengenho.className = 'py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 bg-rose-500 text-white shadow';
+        btnGenkaho.className = 'py-2 px-2 sm:px-4 rounded-xl font-black text-xs sm:text-base transition-all flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 text-amber-900 hover:bg-white/60';
+        document.getElementById('mode-badge').textContent = 'ひくかずを わけて 10をつくる けいさん！';
+        document.getElementById('cherry-area-minuend').classList.add('hidden');
+        document.getElementById('cherry-area-subtrahend').classList.remove('hidden');
+      }
+
+      // 問題の数字
+      document.getElementById('num-minuend').textContent = state.minuend;
+      document.getElementById('num-subtrahend').textContent = state.subtrahend;
+
+      // ステップ進行ピル
+      for (let i = 1; i <= 3; i++) {
+        const pill = document.getElementById(`step-pill-${i}`);
+        if (state.step === i) {
+          pill.className = 'py-1 px-2.5 rounded-full bg-rose-500 text-white shadow-xs transition-all';
+        } else if (state.step > i) {
+          pill.className = 'py-1 px-2.5 rounded-full bg-emerald-500 text-white transition-all';
+        } else {
+          pill.className = 'py-1 px-2.5 rounded-full bg-slate-100 text-slate-400 transition-all';
+        }
+      }
+
+      // いま計算する「ここ と ここ」を ながまるで かこむ
+      const step2Pair = document.getElementById('step2-focus-pair');
+      const step3Pair = document.getElementById('step3-focus-pair');
+      step2Pair.classList.remove('calculation-oval');
+      step3Pair.classList.remove('calculation-oval', 'is-green');
+      if (state.step === 2) {
+        step2Pair.classList.add('calculation-oval');
+      } else if (state.step === 3) {
+        step3Pair.classList.add('calculation-oval', 'is-green');
+      }
+
+      // さくらんぼ丸・途中式・最終答えスロットの値とハイライト更新
+      document.getElementById('genkaho-c1').textContent = state.values.cherry1 || '?';
+      document.getElementById('genkaho-c2').textContent = state.values.cherry2 || '?';
+      document.getElementById('gengenho-c1').textContent = state.values.cherry1 || '?';
+      document.getElementById('gengenho-c2').textContent = state.values.cherry2 || '?';
+      document.getElementById('mid-answer-slot').textContent = state.values.midAnswer || '?';
+      document.getElementById('final-answer-slot').textContent = state.values.finalAnswer || '?';
+
+      document.querySelectorAll('.slot-btn').forEach(btn => {
+        btn.classList.remove('active-slot');
+        if (
+          state.studyMode === 'practice' &&
+          state.step < 4 &&
+          btn.dataset.slot === state.activeSlot
+        ) {
+          btn.classList.add('active-slot');
+        }
+      });
+
+      // ステップ②・ステップ③の途中式表示更新
+      const step2Box = document.getElementById('step2-box');
+      const step3Box = document.getElementById('step3-box');
+
+      if (state.mode === 'genkaho') {
+        document.getElementById('step2-left').textContent = '10';
+        document.getElementById('step2-right').textContent = String(state.subtrahend);
+        document.getElementById('step3-left').textContent = String(ones);
+        document.getElementById('step3-op').textContent = '＋';
+        document.getElementById('step3-right').textContent = state.values.midAnswer || '?';
+        document.getElementById('step3-preview').textContent = state.values.finalAnswer || '?';
+      } else {
+        document.getElementById('step2-left').textContent = String(state.minuend);
+        document.getElementById('step2-right').textContent = String(ones);
+        document.getElementById('step3-left').textContent = state.values.midAnswer || '?';
+        document.getElementById('step3-op').textContent = '−';
+        document.getElementById('step3-right').textContent = state.values.cherry2 || '?';
+        document.getElementById('step3-preview').textContent = state.values.finalAnswer || '?';
+      }
+
+      if (state.step >= 2) {
+        step2Box.classList.remove('opacity-45');
+      } else {
+        step2Box.classList.add('opacity-45');
+      }
+
+      if (state.step >= 3) {
+        step3Box.classList.remove('opacity-45');
+      } else {
+        step3Box.classList.add('opacity-45');
+      }
+
+      // 先生ガイド・視覚ハイライト・算数ブロックを更新
+      updateGuideMessage();
+      highlightCalculationPair();
+      renderMathBlocks();
+      renderCurrentProcess();
+    }
+
+    // ステップごとの先生ガイドメッセージ更新
+    function updateGuideMessage() {
+      const titleEl = document.getElementById('guide-title');
+      const msgEl = document.getElementById('guide-message');
+      const ones = state.minuend - 10;
+      const expected = getExpectedValues();
+
+      if (state.step === 1) {
+        titleEl.textContent = '① さくらんぼに わけよう！';
+        if (state.mode === 'genkaho') {
+          msgEl.textContent = state.activeSlot === 'cherry1'
+            ? `${state.minuend} を「10」と「いくつ」に わけるかな？ まず ひだりの まるに「10」を いれよう！`
+            : `${state.minuend} は 10 と「いくつ」かな？ みぎの まるに すうじを いれよう！`;
+        } else {
+          msgEl.textContent = state.activeSlot === 'cherry1'
+            ? `${state.minuend} から ばらの「${ones}」を ひきたいね！ ひくかずの ${state.subtrahend} を「${ones}」と「いくつ」に わけるかな？`
+            : `${state.subtrahend} は ${ones} と「いくつ」に わかれるかな？ みぎの まるに いれよう！`;
+        }
+      } else if (state.step === 2) {
+        titleEl.textContent = '② しきを とこう！';
+        msgEl.textContent = state.mode === 'genkaho'
+          ? `10 から ${state.subtrahend} を ひくと いくつに なるかな？（10 − ${state.subtrahend}）`
+          : `${state.minuend} から ${ones} を ひくと いくつに なるかな？（${state.minuend} − ${ones}）`;
+      } else if (state.step === 3) {
+        titleEl.textContent = '③ こたえを だそう！';
+        msgEl.textContent = state.mode === 'genkaho'
+          ? `のこっている ${ones} と、さっき だした ${expected.midAnswer} を あわせると いくつかな？（${ones} ＋ ${expected.midAnswer}）`
+          : `できた 10 から、のこりの ${expected.cherry2} を ひくと いくつかな？（10 − ${expected.cherry2}）`;
+      } else {
+        if (state.studyMode === 'example') {
+          titleEl.textContent = '👀 かきかたの おてほん';
+          msgEl.textContent = `この とおりに プリントに かいてみよう！`;
+        } else {
+          titleEl.textContent = 'はなまる だいせいかい！';
+          msgEl.textContent = `やったね！ ${state.minuend} − ${state.subtrahend} ＝ ${expected.finalAnswer} が できたよ！`;
+        }
+      }
+    }
+
+    // 計算する数字同士をリングで結んで強調する視覚アシスト
+    function highlightCalculationPair() {
+      const minuendEl = document.getElementById('num-minuend');
+      const subtrahendEl = document.getElementById('num-subtrahend');
+      const genkahoC1 = document.getElementById('genkaho-c1');
+      const genkahoC2 = document.getElementById('genkaho-c2');
+      const gengenhoC1 = document.getElementById('gengenho-c1');
+      const gengenhoC2 = document.getElementById('gengenho-c2');
+      const midSlot = document.getElementById('mid-answer-slot');
+      const badgeEl = document.getElementById('mode-badge');
+
+      // リセット
+      [minuendEl, subtrahendEl, genkahoC1, genkahoC2, gengenhoC1, gengenhoC2, midSlot].forEach(el => {
+        if (el) el.classList.remove('ring-4', 'ring-indigo-400', 'ring-emerald-400', 'scale-105');
+      });
+
+      const ones = state.minuend - 10;
+      const expected = getExpectedValues();
+
+      if (state.step === 1) {
+        if (state.mode === 'genkaho') {
+          minuendEl.classList.add('ring-4', 'ring-rose-300');
+          badgeEl.textContent = `🍒 ${state.minuend} を「10」と「いくつ」に わけるかな？`;
+        } else {
+          subtrahendEl.classList.add('ring-4', 'ring-rose-300');
+          badgeEl.textContent = `🍒 ${state.minuend} から「${ones}」を ひけるように ${state.subtrahend} を わけよう！`;
+        }
+      } else if (state.step === 2) {
+        if (state.mode === 'genkaho') {
+          // 「10」と「ひく数」を強調
+          genkahoC1.classList.add('ring-4', 'ring-indigo-400', 'scale-105');
+          subtrahendEl.classList.add('ring-4', 'ring-indigo-400', 'scale-105');
+          badgeEl.textContent = `② まず 10 − ${state.subtrahend} を けいさんしよう！`;
+        } else {
+          // 「ひかれる数」と「さくらんぼ左」を強調
+          minuendEl.classList.add('ring-4', 'ring-indigo-400', 'scale-105');
+          gengenhoC1.classList.add('ring-4', 'ring-indigo-400', 'scale-105');
+          badgeEl.textContent = `② まず ${state.minuend} − ${ones} で 10 を つくろう！`;
+        }
+      } else if (state.step === 3) {
+        if (state.mode === 'genkaho') {
+          // 「さくらんぼ右(ones)」と「途中答え」を強調
+          genkahoC2.classList.add('ring-4', 'ring-emerald-400', 'scale-105');
+          midSlot.classList.add('ring-4', 'ring-emerald-400', 'scale-105');
+          badgeEl.textContent = `③ のこりの ${ones} と ${expected.midAnswer} を たそう！`;
+        } else {
+          // 「途中答え(10)」と「さくらんぼ右」を強調
+          midSlot.classList.add('ring-4', 'ring-emerald-400', 'scale-105');
+          gengenhoC2.classList.add('ring-4', 'ring-emerald-400', 'scale-105');
+          badgeEl.textContent = `③ できた 10 から のこりの ${expected.cherry2} を ひこう！`;
+        }
+      } else {
+        badgeEl.textContent = state.studyMode === 'example'
+          ? `👀 さくらんぼの わけかたと じゅんばんを みてみよう！`
+          : `🎉 ぜんぶ せいかい！ プリントにも かいてみよう！`;
+      }
+    }
+
+    // いまの計算を、大きな数字と短いことばで見せる
+    function renderCurrentProcess() {
+      const label = document.getElementById('process-step-label');
+      const message = document.getElementById('process-message');
+      const equation = document.getElementById('process-equation');
+      const submessage = document.getElementById('process-submessage');
+      const ones = state.minuend - 10;
+      const expected = getExpectedValues();
+      const answer = state.values.midAnswer || '？';
+      const finalAnswer = state.values.finalAnswer || '？';
+
+      const chip = (value, color) =>
+        `<span class="px-4 py-2 rounded-2xl ${color} border-2">${value}</span>`;
+      const arrow = '<span class="text-slate-400">→</span>';
+      const plusMinus = '<span class="text-slate-500">＋</span>';
+
+      if (state.step === 1) {
+        label.textContent = '① わける';
+        if (state.mode === 'genkaho') {
+          message.textContent = `${state.minuend}を 10と ${ones}に わけるよ。`;
+          equation.innerHTML = `${chip(state.minuend, 'bg-amber-100 text-amber-900 border-amber-300')} ${arrow} ${chip('10', 'bg-rose-100 text-rose-700 border-rose-300')} ${plusMinus.replace('＋','と')} ${chip(String(ones), 'bg-sky-100 text-sky-700 border-sky-300')}`;
+          submessage.textContent = '10の まとまりと、ばらに わけよう。';
+        } else {
+          message.textContent = `${state.subtrahend}を ${ones}と ${expected.cherry2}に わけるよ。`;
+          equation.innerHTML = `${chip(state.subtrahend, 'bg-amber-100 text-amber-900 border-amber-300')} ${arrow} ${chip(String(ones), 'bg-sky-100 text-sky-700 border-sky-300')} <span class="text-slate-500">と</span> ${chip(String(expected.cherry2), 'bg-rose-100 text-rose-700 border-rose-300')}`;
+          submessage.textContent = `${state.minuend}から ${ones}を ひくと、10に なるよ。`;
+        }
+      } else if (state.step === 2) {
+        label.textContent = '② ひく';
+        if (state.mode === 'genkaho') {
+          message.textContent = `ながまるの 2つの かずを けいさんするよ。`;
+          equation.innerHTML = `${chip('10', 'bg-rose-100 text-rose-700 border-rose-300')} <span class="text-slate-500">−</span> ${chip(state.subtrahend, 'bg-red-100 text-red-700 border-red-300')} <span class="text-slate-500">＝</span> ${chip(answer, 'bg-indigo-100 text-indigo-700 border-indigo-300')}`;
+          submessage.textContent = `10この ブロックから ${state.subtrahend}こに ばつを つけよう。`;
+        } else {
+          message.textContent = `ながまるの 2つの かずを けいさんして、10を つくるよ。`;
+          equation.innerHTML = `${chip(state.minuend, 'bg-amber-100 text-amber-900 border-amber-300')} <span class="text-slate-500">−</span> ${chip(String(ones), 'bg-sky-100 text-sky-700 border-sky-300')} <span class="text-slate-500">＝</span> ${chip(answer, 'bg-indigo-100 text-indigo-700 border-indigo-300')}`;
+          submessage.textContent = `ばらの ${ones}こを ひくと、10こに なるよ。`;
+        }
+      } else if (state.step === 3) {
+        label.textContent = '③ こたえ';
+        if (state.mode === 'genkaho') {
+          message.textContent = `ながまるの 2つの かずを あわせるよ。`;
+          equation.innerHTML = `${chip(String(ones), 'bg-sky-100 text-sky-700 border-sky-300')} <span class="text-slate-500">＋</span> ${chip(String(expected.midAnswer), 'bg-indigo-100 text-indigo-700 border-indigo-300')} <span class="text-slate-500">＝</span> ${chip(finalAnswer, 'bg-emerald-100 text-emerald-700 border-emerald-300')}`;
+          submessage.textContent = 'ばらの へやと、10の へやに のこった かずを あわせよう。';
+        } else {
+          message.textContent = `ながまるの 2つの かずを けいさんするよ。`;
+          equation.innerHTML = `${chip('10', 'bg-rose-100 text-rose-700 border-rose-300')} <span class="text-slate-500">−</span> ${chip(String(expected.cherry2), 'bg-red-100 text-red-700 border-red-300')} <span class="text-slate-500">＝</span> ${chip(finalAnswer, 'bg-emerald-100 text-emerald-700 border-emerald-300')}`;
+          submessage.textContent = '10この ブロックから、のこりの かずを ひこう。';
+        }
+      } else {
+        label.textContent = 'できた！';
+        message.textContent = 'さいごまで できたね！';
+        equation.innerHTML = `${chip(String(state.minuend), 'bg-amber-100 text-amber-900 border-amber-300')} <span class="text-slate-500">−</span> ${chip(String(state.subtrahend), 'bg-red-100 text-red-700 border-red-300')} <span class="text-slate-500">＝</span> ${chip(String(expected.finalAnswer), 'bg-emerald-100 text-emerald-700 border-emerald-300')}`;
+        submessage.textContent = 'わける → ひく → こたえ。じゅんばんに できたよ！';
+      }
+    }
+
+    // 算数ブロック（10フレーム×2）の視覚化
+    function renderMathBlocks() {
+      const leftContainer = document.getElementById('ten-frame-left');
+      const rightContainer = document.getElementById('ten-frame-right');
+      const ones = state.minuend - 10;
+      const expected = getExpectedValues();
+
+      document.getElementById('block-caption').textContent = `10 と ${ones}（ぜんぶで ${state.minuend}こ）`;
+
+      leftContainer.innerHTML = '';
+      rightContainer.innerHTML = '';
+
+      // 左の10フレーム（10個の黄色ブロック）
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'aspect-square rounded-lg border border-amber-300 bg-white flex items-center justify-center p-0.5';
+
+        const block = document.createElement('div');
+        block.className = 'w-full h-full rounded-md bg-amber-400 border border-amber-500 shadow-xs transition-all duration-300';
+
+        // ひきたしざん：ステップ2以降で左の10個から subtrahend 個に斜線（ひいた印）
+        if (state.mode === 'genkaho' && state.step >= 2) {
+          if (i >= 10 - state.subtrahend) {
+            block.classList.add('block-crossed');
+          } else {
+            block.classList.add('ring-2', 'ring-rose-400');
+          }
+        }
+
+        // ひきひきざん：ステップ3以降で左の10個から cherry2 個に斜線
+        if (state.mode === 'gengenho' && state.step >= 3) {
+          if (i >= 10 - expected.cherry2) {
+            block.classList.add('block-crossed');
+          } else {
+            block.classList.add('ring-2', 'ring-emerald-400');
+          }
+        }
+
+        cell.appendChild(block);
+        leftContainer.appendChild(cell);
+      }
+
+      // 右の10フレーム（ones個のピンク/水色ブロック）
+      for (let i = 0; i < 10; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'aspect-square rounded-lg border border-sky-200 bg-white flex items-center justify-center p-0.5';
+
+        if (i < ones) {
+          const block = document.createElement('div');
+          block.className = 'w-full h-full rounded-md bg-rose-400 border border-rose-500 shadow-xs transition-all duration-300';
+
+          // ひきたしざん：ステップ3で残ったブロックと合体する強調
+          if (state.mode === 'genkaho' && state.step >= 3) {
+            block.classList.add('ring-2', 'ring-rose-500');
+          }
+
+          // ひきひきざん：ステップ2以降でばらの部屋のブロックを全部ひく（斜線）
+          if (state.mode === 'gengenho' && state.step >= 2) {
+            block.classList.add('block-crossed');
+          }
+
+          cell.appendChild(block);
+        }
+        rightContainer.appendChild(cell);
+      }
+    }
+
+    // ==========================================
+    // 6. 入力・判定ロジック（ワンタップ即判定）
+    // ==========================================
+    function handleNumberInput(numStr) {
+      if (state.step === 4) return;
+      state.values[state.activeSlot] = numStr;
+      checkCurrentAnswer();
+    }
+
+    function checkCurrentAnswer() {
+      if (state.step === 4) return;
+
+      const raw = state.values[state.activeSlot];
+      if (raw === '') return;
+
+      const num = parseInt(raw, 10);
+      const expected = getExpectedValues();
+      const ones = state.minuend - 10;
+
+      // ステップ1：さくらんぼの2つの数をチェック
+      if (state.step === 1) {
+        if (state.activeSlot === 'cherry1') {
+          if (num === expected.cherry1) {
+            playTone('correct');
+            state.cherry1Done = true;
+            state.hintLevel = 0;
+            document.getElementById('hint-box').classList.add('hidden');
+            state.activeSlot = 'cherry2';
+            renderAll();
+          } else {
+            state.values[state.activeSlot] = '';
+            renderAll();
+            if (state.mode === 'genkaho' && num === ones) {
+              showFeedbackShake(`おしい！ ひだりの まるには まず「10」を いれると けいさんしやすいよ！`);
+            } else if (state.mode === 'gengenho' && num === expected.cherry2) {
+              showFeedbackShake(`おしい！ ${state.minuend}の「${ones}」と おなじ かずを ひだりに いれよう！`);
+            } else {
+              showFeedbackShake(`「${num}」では ないみたい。もういちど かんがえてみよう！`);
+            }
+          }
+        } else if (state.activeSlot === 'cherry2') {
+          if (num === expected.cherry2) {
+            playTone('correct');
+            state.cherry2Done = true;
+            state.step = 2;
+            state.activeSlot = 'midAnswer';
+            state.hintLevel = 0;
+            document.getElementById('hint-box').classList.add('hidden');
+            renderAll();
+          } else {
+            state.values[state.activeSlot] = '';
+            renderAll();
+            showFeedbackShake(`「${num}」では ないみたい。あわせて ${state.mode === 'genkaho' ? state.minuend : state.subtrahend} に なる かずは いくつかな？`);
+          }
+        }
+        return;
+      }
+
+      // ステップ2：途中式の答えチェック
+      if (state.step === 2) {
+        if (num === expected.midAnswer) {
+          playTone('correct');
+          state.step = 3;
+          state.activeSlot = 'finalAnswer';
+          state.hintLevel = 0;
+          document.getElementById('hint-box').classList.add('hidden');
+          renderAll();
+        } else {
+          state.values[state.activeSlot] = '';
+          renderAll();
+          showFeedbackShake(`「${num}」では ないみたい。ブロックの かずも みて もういちど やってみよう！`);
+        }
+        return;
+      }
+
+      // ステップ3：最終答えチェック
+      if (state.step === 3) {
+        if (num === expected.finalAnswer) {
+          playTone('win');
+          state.step = 4;
+          document.getElementById('hanamaru-eq').textContent =
+            `${state.minuend} − ${state.subtrahend} ＝ ${expected.finalAnswer}`;
+          document.getElementById('hanamaru-overlay').classList.remove('hidden');
+          renderAll();
+        } else {
+          state.values[state.activeSlot] = '';
+          renderAll();
+          showFeedbackShake(`「${num}」では ないみたい。あと すこし！ ゆっくり かぞえてみよう！`);
+        }
+      }
+    }
+
+    // 間違い時のやさしい揺れ＆メッセージ表示
+    function showFeedbackShake(message) {
+      playTone('wrong');
+      const activeEl = document.querySelector(`.slot-btn[data-slot="${state.activeSlot}"]`);
+      if (activeEl) {
+        activeEl.classList.remove('shake-anim');
+        void activeEl.offsetWidth; // リフロー強制でアニメーション再発火
+        activeEl.classList.add('shake-anim');
+      }
+      document.getElementById('guide-message').innerHTML =
+        `<span class="text-rose-600 font-black">${message}</span>`;
+    }
+
+    // ==========================================
+    // 7. 段階的ヒント機能（図解ビジュアル付き）
+    // ==========================================
+    function showProgressiveHint() {
+      if (state.step === 4) return;
+      playTone('tap');
+
+      state.hintLevel = Math.min(state.hintLevel + 1, 2);
+      const hintBox = document.getElementById('hint-box');
+      const hintTextEl = document.getElementById('hint-text');
+      const hintVisualEl = document.getElementById('hint-visual');
+      const ones = state.minuend - 10;
+      const expected = getExpectedValues();
+
+      let hintText = '';
+      let visualHtml = '';
+
+      if (state.step === 1) {
+        if (state.mode === 'genkaho') {
+          if (state.activeSlot === 'cherry1') {
+            hintText = state.hintLevel === 1
+              ? `💡 ヒント1：${state.minuend} は「10の へや」と「ばらの へや」に わかれているよ。10の へやには いくつ あるかな？`
+              : `💡 ヒント2：ひだりの さくらんぼには「10」を いれよう！`;
+            visualHtml = `<span class="px-3 py-1 rounded-xl bg-amber-200 border border-amber-400 font-black">${state.minuend}</span> ➔ <span class="px-3 py-1 rounded-full bg-rose-500 text-white font-black">${state.hintLevel === 2 ? '10' : '？'}</span> と <span class="px-3 py-1 rounded-full bg-white border border-rose-300 font-black">？</span>`;
+          } else {
+            hintText = state.hintLevel === 1
+              ? `💡 ヒント1：${state.minuend} から 10 を とると、「ばらの へや」には いくつ のこっているかな？`
+              : `💡 ヒント2：${state.minuend} は 10 と「${ones}」に わかれるよ！`;
+            visualHtml = `<span class="px-3 py-1 rounded-xl bg-amber-200 border border-amber-400 font-black">${state.minuend}</span> ➔ <span class="px-3 py-1 rounded-full bg-rose-100 border border-rose-400 font-black">10</span> と <span class="px-3 py-1 rounded-full bg-rose-500 text-white font-black">${state.hintLevel === 2 ? ones : '？'}</span>`;
+          }
+        } else {
+          if (state.activeSlot === 'cherry1') {
+            hintText = state.hintLevel === 1
+              ? `💡 ヒント1：${state.minuend} を ぴったりの「10」に したいね。「ばらの へや」の ${ones}こ と おなじ かずを ひこう！`
+              : `💡 ヒント2：ひだりの さくらんぼには「${ones}」を いれると、${state.minuend} − ${ones} ＝ 10 に なるよ！`;
+            visualHtml = `<span class="px-3 py-1 rounded-xl bg-sky-200 border border-sky-400 font-black">${state.subtrahend}</span> ➔ <span class="px-3 py-1 rounded-full bg-rose-500 text-white font-black">${state.hintLevel === 2 ? ones : '？'}</span> と <span class="px-3 py-1 rounded-full bg-white border border-rose-300 font-black">？</span>`;
+          } else {
+            hintText = state.hintLevel === 1
+              ? `💡 ヒント1：${state.subtrahend} を「${ones}」と「いくつ」に わけられるかな？ ${ones} ＋ □ ＝ ${state.subtrahend}`
+              : `💡 ヒント2：${state.subtrahend} は ${ones} と「${expected.cherry2}」に わかれるよ！`;
+            visualHtml = `<span class="px-3 py-1 rounded-xl bg-sky-200 border border-sky-400 font-black">${state.subtrahend}</span> ➔ <span class="px-3 py-1 rounded-full bg-rose-100 border border-rose-400 font-black">${ones}</span> と <span class="px-3 py-1 rounded-full bg-rose-500 text-white font-black">${state.hintLevel === 2 ? expected.cherry2 : '？'}</span>`;
+          }
+        }
+      } else if (state.step === 2) {
+        if (state.mode === 'genkaho') {
+          hintText = state.hintLevel === 1
+            ? `💡 ヒント1：10の へやの 10こ から、${state.subtrahend}こ に ばつ印を つけたよ。のこりは いくつ？`
+            : `💡 ヒント2：10 − ${state.subtrahend} ＝「${expected.midAnswer}」だよ！`;
+          visualHtml = `<span class="px-2.5 py-1 rounded-lg bg-indigo-100 border border-indigo-300 font-black">10 − ${state.subtrahend} ＝ ${state.hintLevel === 2 ? expected.midAnswer : '？'}</span>`;
+        } else {
+          hintText = state.hintLevel === 1
+            ? `💡 ヒント1：${state.minuend} から ${ones}こ を ひくと、10に なるよ！`
+            : `💡 ヒント2：${state.minuend} − ${ones} ＝「10」だよ！`;
+          visualHtml = `<span class="px-2.5 py-1 rounded-lg bg-indigo-100 border border-indigo-300 font-black">${state.minuend} − ${ones} ＝ ${state.hintLevel === 2 ? '10' : '？'}</span>`;
+        }
+      } else if (state.step === 3) {
+        if (state.mode === 'genkaho') {
+          hintText = state.hintLevel === 1
+            ? `💡 ヒント1：ばらの へやの「${ones}こ」と、10の へやに のこった「${expected.midAnswer}こ」を あわせて かぞえよう！`
+            : `💡 ヒント2：${ones} ＋ ${expected.midAnswer} ＝「${expected.finalAnswer}」だよ！`;
+          visualHtml = `<span class="px-2.5 py-1 rounded-lg bg-emerald-100 border border-emerald-300 font-black">${ones} ＋ ${expected.midAnswer} ＝ ${state.hintLevel === 2 ? expected.finalAnswer : '？'}</span>`;
+        } else {
+          hintText = state.hintLevel === 1
+            ? `💡 ヒント1：10の へやの 10こ から、のこりの「${expected.cherry2}こ」を ひくよ。10 − ${expected.cherry2} は いくつ？`
+            : `💡 ヒント2：10 − ${expected.cherry2} ＝「${expected.finalAnswer}」だよ！`;
+          visualHtml = `<span class="px-2.5 py-1 rounded-lg bg-emerald-100 border border-emerald-300 font-black">10 − ${expected.cherry2} ＝ ${state.hintLevel === 2 ? expected.finalAnswer : '？'}</span>`;
+        }
+      }
+
+      hintTextEl.textContent = hintText;
+      hintVisualEl.innerHTML = visualHtml;
+      hintBox.classList.remove('hidden');
+    }
+
+    // ==========================================
+    // 8. 問題選択モーダル構築
+    // ==========================================
+    function initPickerModal() {
+      const mContainer = document.getElementById('minuend-buttons');
+      const sContainer = document.getElementById('subtrahend-buttons');
+
+      for (let m = 11; m <= 18; m++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = m;
+        btn.dataset.val = m;
+        btn.className = 'modal-m-btn py-2.5 rounded-xl font-black text-lg border-2 transition-all';
+        btn.addEventListener('click', () => {
+          playTone('tap');
+          state.modalMinuend = m;
+          updateModalSelection();
+        });
+        mContainer.appendChild(btn);
+      }
+
+      for (let s = 1; s <= 9; s++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = s;
+        btn.dataset.val = s;
+        btn.className = 'modal-s-btn py-2.5 rounded-xl font-black text-lg border-2 transition-all';
+        btn.addEventListener('click', () => {
+          playTone('tap');
+          state.modalSubtrahend = s;
+          updateModalSelection();
+        });
+        sContainer.appendChild(btn);
+      }
+    }
+
+    function updateModalSelection() {
+      document.getElementById('modal-minuend').textContent = state.modalMinuend;
+      document.getElementById('modal-subtrahend').textContent = state.modalSubtrahend;
+
+      document.querySelectorAll('.modal-m-btn').forEach(btn => {
+        const v = parseInt(btn.dataset.val, 10);
+        btn.className = v === state.modalMinuend
+          ? 'modal-m-btn py-2.5 rounded-xl font-black text-lg border-2 bg-amber-400 border-amber-500 text-white shadow-xs'
+          : 'modal-m-btn py-2.5 rounded-xl font-black text-lg border-2 bg-slate-50 border-slate-200 text-slate-700 hover:bg-amber-50';
+      });
+
+      document.querySelectorAll('.modal-s-btn').forEach(btn => {
+        const v = parseInt(btn.dataset.val, 10);
+        btn.className = v === state.modalSubtrahend
+          ? 'modal-s-btn py-2.5 rounded-xl font-black text-lg border-2 bg-sky-500 border-sky-600 text-white shadow-xs'
+          : 'modal-s-btn py-2.5 rounded-xl font-black text-lg border-2 bg-slate-50 border-slate-200 text-slate-700 hover:bg-sky-50';
+      });
+
+      const ones = state.modalMinuend - 10;
+      const isBorrowing = ones < state.modalSubtrahend;
+      const msgEl = document.getElementById('modal-validation-msg');
+      const applyBtn = document.getElementById('apply-problem-btn');
+
+      if (isBorrowing) {
+        msgEl.textContent = '⭕ くりさがりの ある さくらんぼ算の しきだよ！';
+        msgEl.className = 'text-xs font-bold text-emerald-600 mt-1';
+        applyBtn.disabled = false;
+      } else {
+        const directAns = state.modalMinuend - state.modalSubtrahend;
+        msgEl.textContent = `💡 ${state.modalMinuend} − ${state.modalSubtrahend} ＝ ${directAns} は くりさがりが ないので、さくらんぼを かかずに そのまま ひけるよ！`;
+        msgEl.className = 'text-xs font-bold text-amber-700 mt-1';
+        applyBtn.disabled = true;
+      }
+    }
+
+    // ==========================================
+    // 9. イベントリスナー登録
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      initPickerModal();
+
+      // モード切り替え（ひきたしざん / ひきひきざん）
+      document.getElementById('mode-genkaho').addEventListener('click', () => {
+        if (state.mode !== 'genkaho') {
+          playTone('tap');
+          state.mode = 'genkaho';
+          loadProblem(state.minuend, state.subtrahend);
+        }
+      });
+
+      document.getElementById('mode-gengenho').addEventListener('click', () => {
+        if (state.mode !== 'gengenho') {
+          playTone('tap');
+          state.mode = 'gengenho';
+          loadProblem(state.minuend, state.subtrahend);
+        }
+      });
+
+      // 学習スタイル切り替え（じぶんで いれてみる / かきかた おてほん）
+      document.getElementById('study-practice-btn').addEventListener('click', () => {
+        if (state.studyMode !== 'practice') {
+          playTone('tap');
+          state.studyMode = 'practice';
+          loadProblem(state.minuend, state.subtrahend);
+        }
+      });
+
+      document.getElementById('study-example-btn').addEventListener('click', () => {
+        if (state.studyMode !== 'example') {
+          playTone('tap');
+          state.studyMode = 'example';
+          loadProblem(state.minuend, state.subtrahend);
+        }
+      });
+
+      // 数字キーパッド
+      document.querySelectorAll('.num-key').forEach(btn => {
+        btn.addEventListener('click', () => handleNumberInput(btn.dataset.num));
+      });
+
+      // さいしょからやりなおす
+      document.getElementById('reset-problem-btn').addEventListener('click', () => {
+        playTone('tap');
+        state.studyMode = 'practice';
+        loadProblem(state.minuend, state.subtrahend);
+      });
+
+      // 算数ブロックの表示・非表示切り替え
+      document.getElementById('toggle-blocks-btn').addEventListener('click', (e) => {
+        playTone('tap');
+        const body = document.getElementById('blocks-body');
+        const isHidden = body.classList.toggle('hidden');
+        e.currentTarget.textContent = isHidden ? 'みる ▼' : 'かくす ▲';
+      });
+
+      // ヒントボタン
+      document.getElementById('hint-btn').addEventListener('click', showProgressiveHint);
+
+      // モーダル開閉（ボタン・式の数字タップ・完了バナーの次入力ボタン）
+      const openModalHandler = () => {
+        playTone('tap');
+        state.modalMinuend = state.minuend;
+        state.modalSubtrahend = state.subtrahend;
+        updateModalSelection();
+        document.getElementById('picker-modal').classList.remove('hidden');
+      };
+
+      document.getElementById('open-picker-btn').addEventListener('click', openModalHandler);
+      document.getElementById('num-minuend').addEventListener('click', openModalHandler);
+      document.getElementById('num-subtrahend').addEventListener('click', openModalHandler);
+      document.getElementById('next-after-win-btn').addEventListener('click', openModalHandler);
+
+      document.getElementById('close-picker-btn').addEventListener('click', () => {
+        playTone('tap');
+        document.getElementById('picker-modal').classList.add('hidden');
+      });
+
+      document.getElementById('apply-problem-btn').addEventListener('click', () => {
+        playTone('correct');
+        document.getElementById('picker-modal').classList.add('hidden');
+        loadProblem(state.modalMinuend, state.modalSubtrahend);
+      });
+
+      // 効果音オン・オフ
+      document.getElementById('sound-toggle-btn').addEventListener('click', (e) => {
+        state.soundEnabled = !state.soundEnabled;
+        e.currentTarget.textContent = state.soundEnabled ? '🔊' : '🔇';
+      });
+
+      // キーボード入力サポート（PC利用時）
+      document.addEventListener('keydown', (e) => {
+        if (!document.getElementById('picker-modal').classList.contains('hidden')) return;
+        if (state.studyMode !== 'practice') return;
+        if (e.key >= '0' && e.key <= '9') {
+          handleNumberInput(e.key);
+        }
+      });
+
+      // 初期問題ロード（13 - 9）
+      loadProblem(13, 9);
+    });
+  </script>
+</body>
+</html>
